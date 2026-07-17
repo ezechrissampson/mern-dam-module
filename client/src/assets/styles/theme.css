@@ -1,0 +1,226 @@
+:root {
+  --dam-primary: #16a34a;
+  --dam-primary-hover: #15803d;
+  --dam-primary-light: #dcfce7;
+  --dam-primary-dark: #14532d;
+  --dam-accent: #22c55e;
+
+  --dam-bg: #f8fafc;
+  --dam-surface: #ffffff;
+  --dam-border: #e5e7eb;
+
+  --dam-text-primary: #111827;
+  --dam-text-secondary: #6b7280;
+
+  --dam-success: #16a34a;
+  --dam-warning: #f59e0b;
+  --dam-danger: #dc2626;
+  --dam-info: #2563eb;
+
+  --bs-primary: var(--dam-primary);
+  --bs-primary-rgb: 22, 163, 74;
+  --bs-body-bg: var(--dam-bg);
+  --bs-body-color: var(--dam-text-primary);
+  --bs-border-color: var(--dam-border);
+}
+
+body {
+  background-color: var(--dam-bg);
+  color: var(--dam-text-primary);
+}
+
+.dam-app[data-theme='dark'] {
+  --dam-bg: #0f172a;
+  --dam-surface: #1e293b;
+  --dam-border: #334155;
+  --dam-text-primary: #f1f5f9;
+  --dam-text-secondary: #94a3b8;
+}
+
+.btn-dam-primary {
+  background-color: var(--dam-primary);
+  border-color: var(--dam-primary);
+  color: #fff;
+}
+.btn-dam-primary:hover,
+.btn-dam-primary:focus {
+  background-color: var(--dam-primary-hover);
+  border-color: var(--dam-primary-hover);
+  color: #fff;
+}
+
+.dam-surface {
+  background-color: var(--dam-surface);
+  border: 1px solid var(--dam-border);
+  border-radius: 0.75rem;
+}
+
+.dam-stat-card {
+  background-color: var(--dam-surface);
+  border: 1px solid var(--dam-border);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.dam-stat-card:hover {
+  box-shadow: 0 4px 16px rgba(17, 24, 39, 0.08);
+  transform: translateY(-2px);
+}
+
+.dam-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--dam-primary-light);
+  color: var(--dam-primary-dark);
+  font-size: 1.25rem;
+}
+
+.dam-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.dam-media-card {
+  position: relative;
+  background: var(--dam-surface);
+  border: 1px solid var(--dam-border);
+  border-radius: 0.65rem;
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.dam-media-card:hover {
+  border-color: var(--dam-primary);
+  box-shadow: 0 6px 18px rgba(22, 163, 74, 0.12);
+}
+.dam-media-card.selected {
+  outline: 2px solid var(--dam-primary);
+  outline-offset: -2px;
+}
+
+.dam-media-thumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: var(--dam-bg);
+  display: block;
+}
+
+.dam-media-hover-actions {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.dam-media-card:hover .dam-media-hover-actions {
+  opacity: 1;
+}
+
+.dam-hover-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--dam-text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+.dam-hover-btn:hover {
+  background: var(--dam-primary);
+  color: #fff;
+}
+
+.dam-skeleton {
+  background: linear-gradient(90deg, var(--dam-border) 25%, #f1f5f9 37%, var(--dam-border) 63%);
+  background-size: 400% 100%;
+  animation: dam-skeleton-loading 1.4s ease infinite;
+  border-radius: 0.5rem;
+}
+@keyframes dam-skeleton-loading {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+.dam-sidebar {
+  width: 250px;
+  min-height: 100vh;
+  background: var(--dam-surface);
+  border-right: 1px solid var(--dam-border);
+}
+
+.dam-sidebar .nav-link {
+  color: var(--dam-text-secondary);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.925rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.dam-sidebar .nav-link.active {
+  background: var(--dam-primary-light);
+  color: var(--dam-primary-dark);
+  font-weight: 600;
+}
+.dam-sidebar .nav-link:hover {
+  background: var(--dam-bg);
+  color: var(--dam-text-primary);
+}
+
+.dam-dropzone {
+  border: 2px dashed var(--dam-border);
+  border-radius: 0.85rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--dam-text-secondary);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.dam-dropzone.active {
+  border-color: var(--dam-primary);
+  background: var(--dam-primary-light);
+  color: var(--dam-primary-dark);
+}
+
+.dam-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: min(480px, 100vw);
+  background: var(--dam-surface);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+  z-index: 1050;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+}
+.dam-drawer.open {
+  transform: translateX(0);
+}
+
+.dam-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.4);
+  z-index: 1040;
+}
+
+.text-dam-secondary {
+  color: var(--dam-text-secondary) !important;
+}

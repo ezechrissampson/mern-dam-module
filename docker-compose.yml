@@ -1,0 +1,46 @@
+# Reference deployment for running the DAM module standalone (demo/dev).
+# In a real integration, the "server" service here is typically replaced
+# by your existing host application container that mounts damRouter.
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - '27017:27017'
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - '6379:6379'
+
+  server:
+    build: ./server
+    restart: unless-stopped
+    env_file: ./server/.env
+    environment:
+      MONGO_URI: mongodb://mongo:27017/dam_module
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - mongo
+      - redis
+    ports:
+      - '5001:5001'
+
+  client:
+    build: ./client
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - '8080:80'
+
+volumes:
+  mongo_data:
+  redis_data:
