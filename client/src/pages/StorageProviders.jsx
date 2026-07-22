@@ -14,7 +14,7 @@ export default function StorageProviders() {
       <p className="text-dam-secondary mb-3">This module's storage layer is provider-agnostic — swap providers via the STORAGE_PROVIDER environment variable with no application code changes.</p>
 
       <div className="row g-3">
-        {(stats?.storageProvider.registered || ['cloudinary', 's3', 'local']).map((name) => {
+        {(stats?.storageProvider.registered || ['cloudinary', 'local']).map((name) => {
           const active = stats?.storageProvider.active === name;
           return (
             <div className="col-md-4" key={name}>

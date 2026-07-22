@@ -12,3 +12,4 @@ export { default as MediaFavorite } from './MediaFavorite.js';
 export { default as MediaActivity } from './MediaActivity.js';
 export { default as MediaPermission } from './MediaPermission.js';
 export { default as AuditLog } from './AuditLog.js';
+export { default as StandaloneUser } from '../standalone-auth/StandaloneUser.js';

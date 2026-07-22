@@ -27,7 +27,10 @@ export const mediaApi = {
   bulkMove: (ids, folderId) => apiClient.post('/media/bulk/move', { ids, folderId }).then((r) => r.data),
   bulkAssignTags: (ids, tags) => apiClient.post('/media/bulk/tags', { ids, tags }).then((r) => r.data),
   bulkArchive: (ids, archive = true) => apiClient.post('/media/bulk/archive', { ids, archive }).then((r) => r.data),
-  bulkExportMetadata: (ids) => apiClient.post('/media/bulk/export-metadata', { ids }).then((r) => r.data),
+  // Returns an .xlsx file (binary), not the usual JSON envelope — see
+  // server/src/utils/xlsxExport.js.
+  bulkExportMetadata: (ids) =>
+    apiClient.post('/media/bulk/export-metadata', { ids }, { responseType: 'blob' }).then((r) => r.data),
 };
 
 export default mediaApi;

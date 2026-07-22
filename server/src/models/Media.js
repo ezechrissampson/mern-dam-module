@@ -39,7 +39,7 @@ const mediaSchema = new Schema(
     category: { type: String, enum: Object.values(ASSET_CATEGORY), required: true, index: true },
 
     // --- Storage ---
-    storageProvider: { type: String, required: true, index: true }, // "cloudinary" | "s3" | "local"
+    storageProvider: { type: String, required: true, index: true }, // "cloudinary" | "local"
     providerAssetId: { type: String, required: true },
     publicId: { type: String, required: true, index: true },
     url: { type: String, required: true },

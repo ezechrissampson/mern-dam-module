@@ -3,9 +3,14 @@ import { connectDB } from './config/db.js';
 import createApp from './app.js';
 import logger from './utils/logger.js';
 import './models/index.js'; // register all models
+import { ensureDefaultAdmin } from './standalone-auth/authService.js';
 
 async function start() {
   await connectDB();
+
+  if (env.authMode === 'standalone') {
+    await ensureDefaultAdmin();
+  }
 
   const app = createApp();
 
@@ -13,6 +18,10 @@ async function start() {
     logger.info(`[server] DAM module listening on port ${env.port} (${env.nodeEnv})`);
     logger.info(`[server] API base: ${env.appUrl}${env.apiPrefix}`);
     logger.info(`[server] Storage provider: ${env.storage.provider}`);
+    logger.info(`[server] Auth mode: ${env.authMode}`);
+    if (env.authMode === 'standalone') {
+      logger.info(`[server] Standalone admin login: ${env.standaloneAdmin.email} (see STANDALONE_ADMIN_* env vars)`);
+    }
   });
 
   const shutdown = (signal) => {

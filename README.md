@@ -4,10 +4,17 @@ A production-ready, reusable **Digital Asset Management (DAM)** module for MERN
 applications — CMS platforms, SaaS products, CRMs, LMS platforms, marketplaces,
 admin dashboards, ecommerce, ERP, and fintech products.
 
-This module manages **all media and document assets** for a host application
-that already has its own Authentication and Authorization. It is designed to
-be dropped into an existing Express + MongoDB backend and an existing React
-frontend with minimal wiring.
+This module manages **all media and document assets**. It runs two ways:
+
+- **Standalone** (default) — the module manages its own users and login, so
+  it can be run, demoed, and unit/integration tested completely on its own,
+  with zero dependency on any other application.
+- **Host-integrated** — mounted into an existing MERN application that
+  already has its own Authentication and Authorization, which takes over
+  identifying the user entirely.
+
+Which mode is active is a single environment variable (`AUTH_MODE`) — no
+code branches, no separate builds.
 
 ---
 
@@ -17,11 +24,11 @@ frontend with minimal wiring.
 2. [Tech Stack](#tech-stack)
 3. [Folder Structure](#folder-structure)
 4. [Installation](#installation)
-5. [Integration Guide](#integration-guide)
-6. [Configuration / Environment Variables](#configuration--environment-variables)
-7. [Storage Adapter Architecture](#storage-adapter-architecture)
-8. [Cloudinary Configuration](#cloudinary-configuration)
-9. [Amazon S3 Configuration](#amazon-s3-configuration)
+5. [Authentication Modes](#authentication-modes)
+6. [Integration Guide](#integration-guide)
+7. [Configuration / Environment Variables](#configuration--environment-variables)
+8. [Storage Adapter Architecture](#storage-adapter-architecture)
+9. [Cloudinary Configuration](#cloudinary-configuration)
 10. [API Documentation](#api-documentation)
 11. [Metadata System](#metadata-system)
 12. [Image Processing Pipeline](#image-processing-pipeline)
@@ -71,7 +78,8 @@ alt text, caption; filters for type, extension, folder, uploader,
 storage provider, size range, date range, visibility, unused, favorites.
 
 **Bulk Operations** — delete, restore, move, tag, archive, export
-metadata (JSON), with "asset in use" confirmation safeguards.
+metadata to a downloadable `.xlsx` workbook, with "asset in use"
+confirmation safeguards.
 
 **Usage Tracking** — host app calls a simple API to register/release
 where an asset is used (blog, product, page, email, banner, profile,
@@ -80,18 +88,27 @@ CMS, or custom); deletion is blocked (with override) while in use.
 **Versioning** — every replace/edit is recorded; compare, restore, or
 roll back to any prior version.
 
-**Security** — OWASP-aligned: magic-number file signature verification,
-MIME allowlist, blocked extension list, filename randomization, SVG
-sanitization, PDF structural validation, pluggable virus-scan hook,
-rate limiting, Mongo-injection sanitization, HPP protection, audit
-logging, centralized error handling, signed/private URLs.
+**Built-in standalone authentication, with no login screen** — a JWT
+session is established silently in the background at startup (default
+admin credentials, auto-provisioned), so opening the module goes
+straight to the Dashboard. This is what makes the module runnable and
+testable entirely on its own, with zero manual sign-in step. Cleanly
+disabled in favor of a host app's own auth with one env var — see
+[Authentication Modes](#authentication-modes).
+
+**Security** — OWASP-aligned: bcrypt password hashing, short-lived signed
+JWTs, magic-number file signature verification, MIME allowlist, blocked
+extension list, filename randomization, SVG sanitization, PDF structural
+validation, pluggable virus-scan hook, rate limiting (including a
+dedicated stricter limiter on auth endpoints), Mongo-injection
+sanitization, HPP protection, audit logging, centralized error handling.
 
 **Recycle Bin** — soft delete with a scheduled purge job past a
 configurable retention window.
 
-**Storage Abstraction** — Cloudinary (primary), Amazon S3, and a local
-disk adapter for development, all behind one interface, selected purely
-by environment variable.
+**Storage Abstraction** — Cloudinary is the storage provider, behind a
+provider-agnostic interface, plus a local disk adapter for development.
+Another provider can be added later without touching application code.
 
 ---
 
@@ -102,13 +119,16 @@ React Router DOM, Axios.
 
 **Backend:** Node.js, Express.js, MongoDB, Mongoose.
 
-**Cloud Storage:** Cloudinary (primary), Amazon S3 (secondary adapter),
-local disk (dev-only adapter).
+**Cloud Storage:** Cloudinary, with a provider-agnostic storage layer so
+another provider (Amazon S3, Azure Blob, GCS) can be added later without
+application code changes. A local disk adapter is included for
+development/testing.
 
 **Supporting libraries:** multer, sharp, file-type, mime-types,
 express-validator, helmet, compression, cors, dotenv, uuid/nanoid,
 express-rate-limit, express-mongo-sanitize, hpp, DOMPurify (SVG
-sanitization), image-size, pdf-lib, mammoth, xlsx, ioredis.
+sanitization), image-size, pdf-lib, mammoth, exceljs, ioredis, bcryptjs,
+jsonwebtoken.
 
 ---
 
@@ -118,31 +138,32 @@ sanitization), image-size, pdf-lib, mammoth, xlsx, ioredis.
 dam-module/
 ├── server/
 │   ├── src/
-│   │   ├── config/          # env, db, redis (no cloudinary.js needed — config lives in env.js)
-│   │   ├── constants/        # permissions, file-type taxonomy, error codes
-│   │   ├── controllers/      # thin HTTP handlers — no business logic
-│   │   ├── errors/           # AppError hierarchy
-│   │   ├── jobs/              # scheduled maintenance (trash purge, audit log purge)
-│   │   ├── middlewares/       # security, permission, upload, error handling
-│   │   ├── models/            # Mongoose schemas (Media, Folder, versions, usage, etc.)
-│   │   ├── repositories/      # the only layer that builds Mongoose queries
-│   │   ├── routes/v1/         # REST route definitions
-│   │   ├── services/          # business logic (upload, media, folder, dashboard, ...)
-│   │   ├── storage/            # StorageProvider interface + Cloudinary/S3/Local adapters
-│   │   ├── utils/              # filename sanitizer, hashing, pagination, logger
-│   │   ├── validators/         # express-validator schemas
-│   │   ├── app.js              # Express app assembly (exported for mounted integration)
-│   │   └── server.js           # standalone entry point
-│   ├── scripts/                # migrate.js, seed.js
+│   │   ├── config/            # env, db, redis
+│   │   ├── constants/          # permissions, file-type taxonomy, error codes
+│   │   ├── controllers/        # thin HTTP handlers — no business logic
+│   │   ├── errors/             # AppError hierarchy
+│   │   ├── jobs/                # scheduled maintenance (trash purge, audit log purge)
+│   │   ├── middlewares/         # security, permission, upload, error handling
+│   │   ├── models/              # Mongoose schemas (Media, Folder, versions, usage, etc.)
+│   │   ├── repositories/        # the only layer that builds Mongoose queries
+│   │   ├── routes/v1/           # REST route definitions
+│   │   ├── services/            # business logic (upload, media, folder, dashboard, ...)
+│   │   ├── standalone-auth/     # built-in JWT auth — only active when AUTH_MODE=standalone
+│   │   ├── storage/              # StorageProvider interface + Cloudinary/Local adapters
+│   │   ├── utils/                # filename sanitizer, hashing, pagination, logger
+│   │   ├── validators/           # express-validator schemas
+│   │   ├── app.js                # Express app assembly (exported for mounted integration)
+│   │   └── server.js             # standalone entry point
+│   ├── scripts/                  # migrate.js, seed.js
 │   └── .env.example
 └── client/
     ├── src/
-    │   ├── api/                # Axios client + one module per resource
-    │   ├── components/         # common/, media/, folders/, upload/, dashboard/
-    │   ├── context/            # ToastContext, ConfirmContext
-    │   ├── hooks/               # useMedia, useFolderTree, useDashboardStats, ...
-    │   ├── pages/                # one file per route, incl. pages/status/*
-    │   ├── routes/               # DamRoutes.jsx
+    │   ├── api/                  # Axios client + one module per resource (incl. authApi)
+    │   ├── components/           # common/, media/, folders/, upload/, dashboard/
+    │   ├── context/               # ToastContext, ConfirmContext, AuthContext
+    │   ├── hooks/                 # useMedia, useFolderTree, useDashboardStats, ...
+    │   ├── pages/                  # one file per route, incl. pages/status/*
+    │   ├── routes/                 # DamRoutes.jsx (auth-gated by default)
     │   └── constants/, utils/
     └── .env.example
 ```
@@ -154,17 +175,32 @@ dam-module/
 ```bash
 # 1. Clone/copy this module into (or alongside) your existing MERN app
 cd dam-module/server
-cp .env.example .env        # fill in MongoDB / Cloudinary / Redis values
+cp .env.example .env        # fill in MongoDB / Cloudinary values
 npm install
 npm run migrate             # sync Mongoose indexes
-npm run seed                # optional: sample folder structure + tag catalog
 npm run dev                 # starts on PORT (default 5001)
+```
 
+On first boot in the default `AUTH_MODE=standalone`, the server
+automatically creates a default admin account from `STANDALONE_ADMIN_EMAIL`
+/ `STANDALONE_ADMIN_PASSWORD` (default: `admin@example.com` /
+`ChangeMe123!`) — this is used automatically, in the background, by the
+client below.
+
+```bash
 cd ../client
-cp .env.example .env
+cp .env.example .env        # VITE_STANDALONE_AUTH_EMAIL/PASSWORD should match server/.env
 npm install
 npm run dev                 # starts on 5173, proxies /api to the server
 ```
+
+Open the client — there is no login screen. The app silently signs in
+with the default admin account in the background and lands directly on
+the **Dashboard**. Uploads, folders, and everything else work
+immediately, with no host application required and no manual sign-in
+step. See [Authentication Modes](#authentication-modes) for how this works.
+
+Optionally run `npm run seed` for a sample folder structure + tag catalog.
 
 Requires Node.js ≥ 18.18, MongoDB ≥ 6, and (optionally) Redis ≥ 6.
 Redis is optional in development — the module falls back to a no-op
@@ -172,10 +208,85 @@ cache automatically if `REDIS_URL` is unset.
 
 ---
 
+## Authentication Modes
+
+This is the setting that determines how a request's identity reaches the
+module, controlled entirely by `AUTH_MODE` in `server/.env`.
+
+### `AUTH_MODE=standalone` (default)
+
+The module manages its own users and sessions end-to-end, with **no
+login screen**:
+
+- `POST /api/v1/auth/register`, `POST /api/v1/auth/login`,
+  `GET /api/v1/auth/me` — implemented in `server/src/standalone-auth/`,
+  backed by a dedicated `StandaloneUser` Mongoose collection, bcrypt
+  password hashing, and signed JWTs.
+- A default admin account is auto-created at boot (see
+  [Installation](#installation)).
+- The client's `AuthProvider` (`client/src/context/AuthContext.jsx`)
+  logs in as that default account **silently, in the background**, on
+  first load — using `VITE_STANDALONE_AUTH_EMAIL` /
+  `VITE_STANDALONE_AUTH_PASSWORD` (`client/.env`, matching the server's
+  `STANDALONE_ADMIN_*` values) — and attaches the resulting JWT to every
+  API request from then on. There is no login form anywhere in the UI;
+  opening the module goes straight to the Dashboard after a brief
+  loading state while that background sign-in completes. If the session
+  ever expires or is invalidated mid-use, the same silent flow
+  re-establishes it automatically — the person using the app never sees
+  an auth prompt.
+
+Use this mode for: running the module by itself, demos, and **unit /
+integration testing** — there is no host application required at all in
+this mode.
+
+### `AUTH_MODE=host`
+
+Authentication is handled entirely by the application you're integrating
+into. The module does not create users, does not expose `/auth/*`
+routes, and does not check passwords — it trusts that `req.user` is
+already populated with a real, authenticated user by the time a request
+reaches it.
+
+In this mode:
+- On the **backend**, don't use `createApp()` / `server.js` — mount
+  `damRouter` directly into your existing Express app, after your
+  existing auth + RBAC middleware (see [Integration Guide](#integration-guide)).
+- On the **frontend**, don't render `<App />` or `<AuthProvider>` —
+  render `<DamRoutes />` directly inside your app's existing,
+  already-authenticated layout (it has no login route or auth gate of
+  its own — see below), and call `setAuthTokenGetter()` /
+  `setUnauthorizedHandler()` (from `api/client.js`) once, pointing them
+  at your own session/token source.
+
+### Switching modes
+
+| | `standalone` | `host` |
+|---|---|---|
+| Who authenticates | This module (silently, no UI) | Your existing application |
+| Backend entry point | `server.js` / `createApp()` | `damRouter` mounted into your app |
+| Frontend entry point | `<App />` (wraps `<AuthProvider>`) | `<DamRoutes />` directly |
+| `/auth/*` routes | Enabled | Not mounted |
+| User storage | `StandaloneUser` collection | Your existing user system |
+
+`DamRoutes` itself never renders a login screen or gates on auth state in
+either mode — it's a plain route table that always opens on the
+Dashboard. In standalone mode, `<AuthGate>` inside `App.jsx` simply
+waits for `AuthProvider`'s silent background sign-in to finish (typically
+under a second) before mounting `<DamRoutes />`, so no page fires an API
+call before a session exists. In host mode, there's nothing to wait for
+— your host app's own token is already available via
+`setAuthTokenGetter()`. Nothing else in the codebase branches on this —
+every controller, service, and component downstream only ever sees
+`req.user` / `useOptionalAuth()`, regardless of which mode populated it.
+
+---
+
 ## Integration Guide
 
-This module assumes your host application **already has Authentication and
-Authorization**. Integration is intentionally limited to five steps:
+Follow this section specifically when embedding the module into a
+dashboard that **already has** Authentication and Authorization (i.e.
+`AUTH_MODE=host`).
 
 ### 1. Register backend routes
 
@@ -192,9 +303,12 @@ configurePermissionResolver((user, permission) => can(user, permission));
 app.use('/api/v1/media-manager', yourAuthMiddleware, damRouter);
 ```
 
+Set `AUTH_MODE=host` in the module's `.env` so its own JWT auth and
+`/auth/*` routes never mount, even if someone runs `server.js` directly.
+
 `req.user` (or `req.auth`, normalized automatically) must be populated by
 your auth middleware before it reaches `damRouter`. The module never
-implements login, sessions, or tokens itself.
+implements login, sessions, or tokens itself in this mode.
 
 ### 2. Connect the existing auth middleware
 
@@ -223,10 +337,18 @@ import DamSidebar from './dam-module/client/src/components/common/DamSidebar.jsx
 // array into your own sidebar component and route to `/media-manager/*`.
 ```
 
-Then mount the routes under your existing authenticated layout:
+Then mount the routes under your existing authenticated layout.
+`DamRoutes` has no login screen and no auth gate of its own — it's a
+plain route table that opens on the Dashboard — so your app's existing
+route guard is all that protects it:
 
 ```jsx
 import DamRoutes from './dam-module/client/src/routes/DamRoutes.jsx';
+import { setAuthTokenGetter, setUnauthorizedHandler } from './dam-module/client/src/api/client.js';
+
+// Once, at your app's bootstrap:
+setAuthTokenGetter(() => yourApp.getCurrentToken());
+setUnauthorizedHandler(() => yourApp.handleSessionExpired());
 
 <Route path="/media-manager/*" element={<DamRoutes />} />
 ```
@@ -234,7 +356,7 @@ import DamRoutes from './dam-module/client/src/routes/DamRoutes.jsx';
 Point the client's `VITE_API_BASE_URL` at wherever you mounted the router
 (e.g. `/api/v1/media-manager`).
 
-### 5. Configure MongoDB, Cloudinary, Redis, (optionally) S3
+### 5. Configure MongoDB, Cloudinary, and Redis
 
 Fill out `server/.env` (see [Environment Variables](#configuration--environment-variables)).
 If your host app already owns a Mongoose connection, skip `connectDB()`
@@ -246,12 +368,12 @@ existing connection.
 
 ```bash
 npm run migrate   # syncs indexes for all DAM collections — safe to re-run
-npm run seed      # optional demo data
+npm run seed      # optional demo data (skips user creation in host mode)
 ```
 
 That's it — no application-specific code is required anywhere inside
-`dam-module/`. Storage providers, permission checks, and mounting all go
-through the seams above.
+`dam-module/`. Storage, authentication, permission checks, and mounting
+all go through the seams above.
 
 ---
 
@@ -261,11 +383,13 @@ See `server/.env.example` for the full, commented list. Highlights:
 
 | Variable | Purpose |
 |---|---|
-| `STORAGE_PROVIDER` | `cloudinary` \| `s3` \| `local` — selects the active adapter |
+| `AUTH_MODE` | `standalone` (default) \| `host` — see [Authentication Modes](#authentication-modes) |
+| `JWT_SECRET` / `JWT_EXPIRES_IN` | Standalone-mode JWT signing (unused in `host` mode) |
+| `STANDALONE_ADMIN_EMAIL` / `STANDALONE_ADMIN_PASSWORD` | Auto-created default login in standalone mode |
+| `STORAGE_PROVIDER` | `cloudinary` (default) \| `local` — selects the active adapter |
 | `MONGO_URI` | MongoDB connection string |
 | `REDIS_URL` | Optional; enables metadata/search/dashboard caching |
 | `CLOUDINARY_*` | Cloudinary credentials + root folder |
-| `AWS_*` | S3 credentials, bucket, signed URL expiry |
 | `MAX_UPLOAD_SIZE_MB` / `MAX_FILES_PER_REQUEST` | Upload limits |
 | `ALLOWED_MIME_TYPES` / `BLOCKED_EXTENSIONS` | Upload allow/deny lists |
 | `RATE_LIMIT_*` | API + upload rate limiting |
@@ -278,6 +402,7 @@ Client (`client/.env.example`):
 | Variable | Purpose |
 |---|---|
 | `VITE_API_BASE_URL` | Base path for the DAM API (relative or absolute) |
+| `VITE_STANDALONE_AUTH_EMAIL` / `VITE_STANDALONE_AUTH_PASSWORD` | Standalone-mode-only: credentials used for the silent background login. Must match the server's `STANDALONE_ADMIN_*`. Not used at all in host mode. |
 
 ---
 
@@ -296,8 +421,9 @@ healthCheck()
 
 `storageFactory.js` maps `STORAGE_PROVIDER` to a concrete class. **No other
 file in the codebase imports a provider directly** — services and
-controllers only ever call `getStorageProvider()`. To add a new provider
-(Azure Blob, GCS, Backblaze B2, ...):
+controllers only ever call `getStorageProvider()`. This build ships with
+`cloudinary` (production) and `local` (disk, dev/test-only). To add a new
+provider (Amazon S3, Azure Blob, GCS, Backblaze B2, ...):
 
 1. Create `server/src/storage/providers/MyProvider.js extends StorageProvider`.
 2. Implement every method above.
@@ -332,26 +458,10 @@ No application code changes required.
    still letting you switch to Cloudinary `eager` transformations by
    passing a `transformation.eager` array into `provider.upload()` if
    preferred.
-
----
-
-## Amazon S3 Configuration
-
-```
-STORAGE_PROVIDER=s3
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_S3_BUCKET=your-bucket
-AWS_S3_PUBLIC_BASE_URL=https://cdn.yourapp.com   # e.g. a CloudFront distribution
-```
-
-Objects are uploaded with `ServerSideEncryption: AES256`. Private/protected
-assets should be served exclusively through `getSignedUrl()` rather than
-the raw bucket URL — the Media Details panel's "Public URL" field
-switches to a signed URL automatically for non-public visibility once you
-wire `visibility !== 'public'` through to a signed-URL request on the
-client (extension point — see below).
+6. No Cloudinary credentials yet? Set `STORAGE_PROVIDER=local` for local
+   development — files are written to `server/local-storage/` instead.
+   This is dev/test-only; never use it in production (see
+   [Storage Adapter Architecture](#storage-adapter-architecture)).
 
 ---
 
@@ -364,6 +474,13 @@ Base path: `/api/v1` (configurable via `API_PREFIX`, or wherever you mount
 { "success": true, "data": { }, "meta": { } }
 { "success": false, "code": "VALIDATION_ERROR", "message": "...", "details": [] }
 ```
+
+### Auth (standalone mode only — not mounted when `AUTH_MODE=host`)
+| Method | Route | Description |
+|---|---|---|
+| POST | `/auth/register` | Create a standalone account, returns a JWT |
+| POST | `/auth/login` | Log in, returns a JWT |
+| GET | `/auth/me` | Current authenticated user |
 
 ### Media
 | Method | Route | Description |
@@ -382,7 +499,8 @@ Base path: `/api/v1` (configurable via `API_PREFIX`, or wherever you mount
 | PUT | `/media/:id/replace` | Replace file (new version) |
 | GET | `/media/:id/versions` | Version history |
 | POST | `/media/:id/versions/:n/restore` | Roll back to version n |
-| POST | `/media/bulk/{delete,restore,move,tags,archive,export-metadata}` | Bulk ops |
+| POST | `/media/bulk/{delete,restore,move,tags,archive}` | Bulk ops (JSON) |
+| POST | `/media/bulk/export-metadata` | Bulk export — returns a downloadable `.xlsx` file, not the usual JSON envelope |
 
 ### Uploads
 | Method | Route |
@@ -399,8 +517,11 @@ Base path: `/api/v1` (configurable via `API_PREFIX`, or wherever you mount
 ### Dashboard & Activity
 `GET /dashboard/stats`, `GET /dashboard/storage-chart`, `GET /activity`.
 
-Every route is permission-gated per the [Permissions Model](#permissions-model)
-and validated with `express-validator` before reaching a controller.
+Every media/folder/dashboard route is permission-gated per the
+[Permissions Model](#permissions-model) and validated with
+`express-validator` before reaching a controller. `/auth/*` routes are
+rate-limited separately and are the only routes not permission-gated
+(they establish identity in the first place).
 
 ---
 
@@ -443,6 +564,13 @@ application layer (see `imageProcessingService.sanitizeExif`).
 
 Implemented, aligned with OWASP guidance:
 
+- **Password hashing** — bcrypt (12 salt rounds) for standalone-mode accounts.
+- **JWT sessions** — signed with `JWT_SECRET`, short expiry (`JWT_EXPIRES_IN`),
+  verified against a live user lookup on every request (revocable, unlike
+  a stateless claims-only token).
+- **Auth-endpoint rate limiting** — `/auth/register` and `/auth/login` sit
+  behind a stricter limiter (20 attempts / 15 min) than the general API,
+  to slow down credential-stuffing/brute-force attempts.
 - **File-signature (magic number) verification** via `file-type`, checked
   against the declared `Content-Type` — rejects a renamed `.exe`
   masquerading as `.png`.
@@ -452,6 +580,11 @@ Implemented, aligned with OWASP guidance:
 - **SVG sanitization** via DOMPurify (`svg` profile) before storage —
   strips `<script>`, `on*` handlers, `foreignObject`.
 - **PDF structural validation** via `pdf-lib` (rejects corrupted/invalid PDFs).
+- **No SheetJS/`xlsx` dependency** — the "Export Metadata" feature uses
+  `exceljs` instead. The `xlsx` package published to npm is unmaintained
+  there (installs redirect to a separately-sold CDN build) and older
+  versions carry known prototype-pollution advisories; `exceljs` is
+  actively maintained with no such history.
 - **Pluggable virus-scan hook** (ClamAV INSTREAM client included, disabled
   by default; swap in a cloud AV API by replacing one function).
 - **Rate limiting** — general API limiter + a stricter upload-specific limiter.
@@ -460,18 +593,18 @@ Implemented, aligned with OWASP guidance:
 - **XSS protection** — SVG sanitization + `helmet` + no HTML metadata rendering.
 - **Mass-assignment protection** — every mutating endpoint has an explicit
   express-validator allowlist; service layer copies only known fields.
-- **Signed / private URLs** for `s3`/Cloudinary `protected` visibility assets.
+- **Signed / private URLs** for Cloudinary `protected`/`private` visibility assets.
 - **Centralized error handling** — no stack traces leak in production.
 - **Audit logging** — every delete, permission failure, and bulk operation
   is recorded to `AuditLog` with actor/IP/user-agent.
 - **Secure logging** — Winston, structured JSON in production, never logs
-  raw file buffers or auth tokens.
+  raw file buffers, passwords, or auth tokens.
 - **No direct filesystem exposure** — uploads are buffered in memory and
   handed to the active storage provider; the `local` adapter (dev-only)
-  is the only one that touches disk, and it isn't served by Express
-  directly in a way that walks arbitrary paths.
+  is the only one that touches disk.
 - **Environment validation** — the process exits at boot if required env
-  vars are missing.
+  vars are missing, or if `AUTH_MODE=standalone` is combined with a
+  default `JWT_SECRET` in production.
 
 ---
 
@@ -484,24 +617,30 @@ media.view · media.upload · media.edit · media.delete · media.download
 media.manage · media.bulk · folder.manage · metadata.edit · storage.settings
 ```
 
-The module does not implement RBAC — see [Integration Guide](#integration-guide)
-step 3 for wiring these into your existing authorization system.
+In standalone mode, every account is granted the `admin` role (and
+therefore every permission via the default resolver's superuser
+fallback) — fine-grained RBAC isn't the point of the built-in auth, which
+exists to make the module runnable/testable on its own, not to be a
+production multi-tenant permission system. For real deployments, see
+[Integration Guide](#integration-guide) step 3 for wiring permissions
+into your host application's existing authorization system.
 
 ---
 
 ## Database Schema
 
 Collections: `Media`, `Folder`, `MediaVersion`, `MediaTag`, `MediaUsage`,
-`MediaFavorite`, `MediaActivity`, `MediaPermission`, `AuditLog`. All
-timestamped (`createdAt`/`updatedAt`), all mutation-tracked
+`MediaFavorite`, `MediaActivity`, `MediaPermission`, `AuditLog`, and (in
+standalone mode only) `StandaloneUser`. All timestamped
+(`createdAt`/`updatedAt`), all mutation-tracked
 (`createdBy`/`updatedBy` where applicable), soft-delete via
 `isDeleted`/`deletedAt` on `Media` and `Folder`. Indexes: text index on
 `Media` (displayName/description/altText/caption), compound indexes on
 `(folder, status, isDeleted)` and `(category, status, isDeleted)`, unique
 indexes on `Folder.path`, `MediaFavorite(media, user)`,
-`MediaUsage(media, contentType, contentId, fieldName)`. Run
-`npm run migrate` to sync indexes explicitly (recommended in production,
-where Mongoose `autoIndex` should be disabled).
+`MediaUsage(media, contentType, contentId, fieldName)`, and
+`StandaloneUser.email`. Run `npm run migrate` to sync indexes explicitly
+(recommended in production, where Mongoose `autoIndex` should be disabled).
 
 ---
 
@@ -514,29 +653,37 @@ docker compose up --build
 ```
 
 Brings up MongoDB, Redis, the API server, and an Nginx-served static
-build of the client, wired together. In a real integration, replace the
-`server` service with your existing host application's own container/
-image (which mounts `damRouter`).
+build of the client, wired together. Defaults to `AUTH_MODE=standalone`.
+In a real host-integrated deployment, replace the `server` service with
+your existing host application's own container/image (which mounts
+`damRouter` with `AUTH_MODE=host`).
 
 **Manual deployment:**
-1. `server`: `npm ci --omit=dev`, set all required env vars, `npm run
+1. `server`: `npm ci --omit=dev`, set all required env vars (including a
+   strong, unique `JWT_SECRET` if using standalone mode), `npm run
    migrate`, run behind a process manager (PM2/systemd) or as a container;
    put it behind a reverse proxy (Nginx/ALB) that terminates TLS.
 2. `client`: `npm run build`, serve the `dist/` folder as static assets
-   (Nginx, S3+CloudFront, Vercel, etc.), proxy `/api` to the server.
+   (Nginx, a CDN/object storage + CloudFront, Vercel, etc.), proxy `/api` to the server.
 3. Provision MongoDB (Atlas or self-hosted) and Redis (ElastiCache or
    self-hosted) — Redis is optional but strongly recommended in
    production for dashboard/list caching.
 4. Set `NODE_ENV=production` — this disables the dev-only local storage
-   convenience paths and enables JSON structured logging.
+   convenience paths and enables JSON structured logging, and refuses to
+   boot with a default `JWT_SECRET` in standalone mode.
 
 ---
 
 ## Production Checklist
 
 - [ ] `NODE_ENV=production`
-- [ ] `STORAGE_PROVIDER` set to `cloudinary` or `s3` (never `local`)
-- [ ] All Cloudinary/S3 credentials set via secret manager, not committed
+- [ ] `AUTH_MODE` set deliberately — `host` if embedding into an existing
+      authenticated dashboard, `standalone` only if this module's own
+      login is genuinely the intended production auth
+- [ ] If `standalone`: `JWT_SECRET` rotated to a long, random value, and
+      `STANDALONE_ADMIN_PASSWORD` changed from the default
+- [ ] `STORAGE_PROVIDER=cloudinary` (never `local`, which is dev/test-only)
+- [ ] Cloudinary credentials set via a secret manager, not committed
 - [ ] `SIGNED_URL_SECRET` rotated from the default placeholder
 - [ ] `REDIS_URL` configured (dashboard/list caching)
 - [ ] `RATE_LIMIT_*` tuned for expected traffic
@@ -546,8 +693,8 @@ image (which mounts `damRouter`).
 - [ ] `npm run seed` **not** run against production data
 - [ ] A scheduler (cron/Agenda/k8s CronJob) wired to
       `jobs/purgeTrash.js` and `jobs/purgeAuditLogs.js`
-- [ ] `configurePermissionResolver()` wired to your real RBAC, not the
-      default fallback
+- [ ] `configurePermissionResolver()` wired to your real RBAC if in `host`
+      mode, not the default fallback
 - [ ] `MAX_UPLOAD_SIZE_MB` matches your reverse proxy's own body-size limit
 - [ ] TLS terminated in front of both `server` and `client`
 - [ ] CORS `CLIENT_URL` restricted to your real frontend origin(s)
@@ -566,8 +713,8 @@ default). Recommended implementation: buffer chunks against a
 per-upload-id key in Redis (or a temp file for local dev) until all
 chunks arrive, then hand the assembled buffer to
 `uploadService.uploadSingleFile()` unchanged — or, for very large files,
-use S3 multipart upload / Cloudinary's large-file upload API directly
-and skip buffering entirely.
+use Cloudinary's large-file upload API directly and skip buffering
+entirely.
 
 **Custom upload processing step:** add it inside
 `services/uploadService.js#uploadSingleFile` — that function is the
@@ -593,15 +740,27 @@ any other cache and swap the export.
 is a minimal dependency-free bar chart; swap in recharts/chart.js if the
 host app already depends on one.
 
+**Replace standalone auth with something else for testing:** the entire
+built-in auth system lives under `server/src/standalone-auth/` (backend)
+and `client/src/context/AuthContext.jsx` + `App.jsx`'s `AuthGate`
+(frontend, silent background sign-in — no login page to replace). It's
+intentionally isolated from the rest of the module (no other file
+imports from `standalone-auth/` except `app.js`, `server.js`, and
+`scripts/seed.js`), so it can be swapped for a different test-harness
+auth strategy without touching media/folder/upload logic at all.
+
 ---
 
 ## Future Roadmap
 
 - Native video/audio transcoding + thumbnail-frame extraction
-- Chunked resumable upload reference implementation (S3 multipart)
+- Chunked resumable upload reference implementation (Cloudinary large-file upload API)
 - Per-field EXIF/GPS display (currently sanitized to a presence flag)
 - Fine-grained `MediaPermission` enforcement in the permission middleware
   (currently modeled in the schema, not yet enforced in `requirePermission`)
 - AI-assisted alt-text generation hook
+- Amazon S3 adapter (the storage layer is already provider-agnostic —
+  see [Storage Adapter Architecture](#storage-adapter-architecture) —
+  this build ships with Cloudinary only)
 - WebSocket-based real-time upload/activity feed
 - Multi-tenant folder-root isolation helper

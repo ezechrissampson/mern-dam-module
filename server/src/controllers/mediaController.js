@@ -1,6 +1,7 @@
 import asyncHandler from '../middlewares/asyncHandler.js';
 import sendSuccess from '../utils/responseFormatter.js';
 import mediaService from '../services/mediaService.js';
+import { buildMetadataWorkbook } from '../utils/xlsxExport.js';
 
 export const listMedia = asyncHandler(async (req, res) => {
   const { items, meta } = await mediaService.listMedia(req.query);
@@ -102,8 +103,12 @@ export const bulkAssignTags = asyncHandler(async (req, res) => {
 });
 
 export const bulkExportMetadata = asyncHandler(async (req, res) => {
-  const data = await mediaService.bulkExportMetadata(req.body.ids);
-  sendSuccess(res, { data });
+  const rows = await mediaService.bulkExportMetadata(req.body.ids);
+  const buffer = await buildMetadataWorkbook(rows);
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="media-metadata-export.xlsx"');
+  res.send(Buffer.from(buffer));
 });
 
 export const bulkArchive = asyncHandler(async (req, res) => {

@@ -34,14 +34,14 @@ router.post(
 // Chunked upload endpoints — extension point for resumable large-file
 // uploads (pause/resume/retry). A reference implementation strategy is
 // documented in README > Extension Guide > Chunked Uploads; wire your
-// preferred chunk-assembly strategy (local temp buffer, S3 multipart
+// preferred chunk-assembly strategy (local temp buffer
 // upload, or Cloudinary large-file upload API) into these two routes.
 router.post('/chunk', uploadRateLimiter, requirePermission(PERMISSIONS.MEDIA_UPLOAD), (req, res) => {
   res.status(501).json({
     success: false,
     code: 'NOT_IMPLEMENTED',
     message:
-      'Chunked upload assembly is an extension point — see README > Extension Guide > Chunked Uploads for the recommended implementation (multipart to S3 or Cloudinary large upload API).',
+      "Chunked upload assembly is an extension point — see README > Extension Guide > Chunked Uploads for the recommended implementation (Cloudinary's large-file upload API).",
   });
 });
 router.post('/chunk/complete', uploadRateLimiter, requirePermission(PERMISSIONS.MEDIA_UPLOAD), (req, res) => {

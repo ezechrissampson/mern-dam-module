@@ -1,7 +1,10 @@
 import { useNavigate } from 'react-router-dom';
+import { useOptionalAuth } from '../../context/AuthContext.jsx';
 
 export default function Topbar({ onSearch }) {
   const navigate = useNavigate();
+  const auth = useOptionalAuth(); // null when embedded in a host app without this module's AuthProvider
+
   return (
     <div className="d-flex align-items-center justify-content-between border-bottom py-3 px-4 dam-surface" style={{ borderRadius: 0 }}>
       <div className="input-group" style={{ maxWidth: 420 }}>
@@ -15,10 +18,16 @@ export default function Topbar({ onSearch }) {
           onChange={(e) => onSearch?.(e.target.value)}
         />
       </div>
-      <div className="d-flex align-items-center gap-2">
+      <div className="d-flex align-items-center gap-3">
         <button className="btn btn-dam-primary d-flex align-items-center gap-2" onClick={() => navigate('/upload')}>
           <i className="bi bi-cloud-upload" /> Upload
         </button>
+        {auth?.user && (
+          <span className="d-none d-md-flex align-items-center gap-2 text-dam-secondary small">
+            <i className="bi bi-person-circle" />
+            {auth.user.name}
+          </span>
+        )}
       </div>
     </div>
   );

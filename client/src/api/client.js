@@ -3,13 +3,15 @@ import axios from 'axios';
 /**
  * Central Axios instance for the DAM module.
  *
- * Integration note: this module does not implement authentication.
- * The host application should supply how the auth token/session is
- * attached — by default this reads a bearer token from localStorage
- * (`dam_auth_token`) if present, and always sends cookies
- * (`withCredentials`) for session-cookie-based host apps. Override
- * `setAuthTokenGetter()` from your app's bootstrap to plug in your own
- * token source (e.g. a context, redux store, or auth SDK).
+ * This client itself is auth-agnostic — it just attaches whatever bearer
+ * token `tokenGetter` currently points to. In standalone mode (this
+ * module's own AuthProvider, see context/AuthContext.jsx), that's a JWT
+ * from this module's own /auth/login. When embedded in a host app with
+ * its own authentication (AUTH_MODE=host on the backend), call
+ * `setAuthTokenGetter()` once from your app's bootstrap to point this
+ * at your own token/session source instead. `withCredentials` is also
+ * enabled by default for host apps that rely on session cookies rather
+ * than bearer tokens.
  */
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
@@ -38,9 +40,21 @@ export function setUnauthorizedHandler(fn) {
 
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
       onUnauthorized(error);
+    }
+    // requests made with responseType: 'blob' (e.g. the xlsx metadata
+    // export) still get JSON error bodies from the server, but axios
+    // hands them back as an opaque Blob — decode it so error messages
+    // stay readable instead of falling back to "Something went wrong."
+    if (error.response?.data instanceof Blob && error.response.data.type?.includes('json')) {
+      try {
+        const text = await error.response.data.text();
+        error.response.data = JSON.parse(text);
+      } catch {
+        // leave error.response.data as-is if it isn't parseable JSON
+      }
     }
     return Promise.reject(normalizeApiError(error));
   }

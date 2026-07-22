@@ -107,12 +107,11 @@ export default function MediaLibrary() {
   };
 
   const handleBulkExport = async () => {
-    const res = await mediaApi.bulkExportMetadata(selectedIds);
-    const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+    const blob = await mediaApi.bulkExportMetadata(selectedIds);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'media-metadata-export.json';
+    a.download = 'media-metadata-export.xlsx';
     a.click();
     URL.revokeObjectURL(url);
   };

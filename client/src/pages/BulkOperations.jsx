@@ -71,13 +71,13 @@ export default function BulkOperations() {
           refresh();
         }}
         onExport={async () => {
-          const res = await mediaApi.bulkExportMetadata(ids);
-          const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
+          const blob = await mediaApi.bulkExportMetadata(ids);
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = 'metadata-export.json';
+          a.download = 'media-metadata-export.xlsx';
           a.click();
+          URL.revokeObjectURL(url);
         }}
       />
 

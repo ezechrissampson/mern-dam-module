@@ -2,7 +2,7 @@
  * StorageProvider — the contract every storage adapter must implement.
  *
  * This is the seam that makes the DAM module storage-agnostic. Application
- * code (services/controllers) NEVER talks to Cloudinary, S3, or the disk
+ * code (services/controllers) NEVER talks to Cloudinary or the disk
  * directly — it only talks to an instance of this interface, obtained from
  * storageFactory.js. Swapping providers is a one-line env var change.
  *
@@ -14,7 +14,7 @@
  * No other application code needs to change.
  */
 export class StorageProvider {
-  /** Unique key, e.g. "cloudinary" | "s3" | "local" */
+  /** Unique key, e.g. "cloudinary" | "local" */
   get name() {
     throw new Error('StorageProvider.name must be implemented');
   }

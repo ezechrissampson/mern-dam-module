@@ -2,22 +2,26 @@ import { ForbiddenError, UnauthenticatedError } from '../errors/AppError.js';
 
 /**
  * requirePermission(permissionKey) — the integration seam between this
- * module and the host application's existing RBAC/authorization system.
+ * module and an authorization system.
  *
- * This module does NOT implement authentication or authorization itself.
- * It expects that by the time a request reaches DAM routes:
- *   1. The host app's auth middleware has already run and populated
- *      `req.user` (or `req.auth`).
- *   2. `req.user` exposes a way to check permissions.
+ * This file only checks permissions; it never authenticates a request.
+ * By the time a request reaches DAM routes, something must have already
+ * populated `req.user` (or `req.auth`):
+ *   - In AUTH_MODE=standalone (default), that's this module's own
+ *     `standaloneAuthenticate` JWT middleware (see
+ *     standalone-auth/authMiddleware.js) — used for running/testing the
+ *     module on its own, no host app required.
+ *   - In AUTH_MODE=host, that's the host application's own existing
+ *     auth middleware, mounted before `damRouter` — see
+ *     README > Integration Guide.
  *
  * Out of the box this checks, in order:
  *   - req.user.can(permission)              // function-style RBAC
  *   - req.user.permissions.includes(perm)    // flat array of permission strings
  *   - req.user.roles includes 'admin'        // superuser convenience fallback
  *
- * Most integrations will instead pass a custom `resolver` (see
- * README > Integration Guide) mapping directly to their existing
- * authorization function, e.g.:
+ * Host integrations will typically instead pass a custom `resolver`
+ * mapping directly to their existing authorization function, e.g.:
  *
  *   import { can } from '../../../auth/rbac.js';
  *   configurePermissionResolver((user, permission) => can(user, permission));

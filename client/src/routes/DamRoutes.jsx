@@ -17,17 +17,18 @@ import Offline from '../pages/status/Offline.jsx';
 import Maintenance from '../pages/status/Maintenance.jsx';
 
 /**
- * DamRoutes — the full route table for this module.
+ * DamRoutes — the full route table for this module. There is no login
+ * route and no route-level auth gate here: opening the module always
+ * lands directly on the Dashboard.
  *
- * STANDALONE: rendered as-is by App.jsx for local development/demo.
- *
- * MOUNTED INTEGRATION: nest these <Route> elements under your host
- * application's own authenticated layout route instead of <AppLayout>,
- * e.g.:
- *   <Route path="/admin" element={<YourAppShell />}>
- *     <Route path="media-manager/*" element={<DamRoutes embedded />} />
- *   </Route>
- * See README > Integration Guide.
+ * - In STANDALONE use (App.jsx), the surrounding <AuthProvider> already
+ *   established a session silently in the background before this ever
+ *   renders (see AuthContext.jsx) — by the time these routes are on
+ *   screen, every API call is already authenticated.
+ * - In HOST-INTEGRATED use, render <DamRoutes /> directly inside your
+ *   own app's existing, already-authenticated layout route — your host
+ *   app's own route guard covers access control; this module doesn't
+ *   add a second one. See README > Integration Guide.
  */
 export default function DamRoutes() {
   return (
